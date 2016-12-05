@@ -12,12 +12,13 @@ fi
 dist=$(tr -s ' \011' '\012' < /etc/issue | head -n 1)
 if [ "$dist" = "Ubuntu" ]
 then
+    #make login self enable
+	yes | ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+	cat ~/.ssh/id_dsa.pub >> ~/.ssh/authorized_keys  
+	
 	echo "set hostname"
-	rm /etc/hostname
-	echo ${node[0]} >> /etc/hostname;hostname ${node[0]}
-	ufw disable
-	ulimit -n 10000
-	for((i=1; i<${#node[*]}; i++))
+	hostname_prefix="packone"
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   expect -c "
 		spawn ssh $username@${node[i]} \"rm /etc/hostname;echo ${node[i]} >> /etc/hostname;hostname ${node[i]};ufw disable;ulimit -n 10000;\"
@@ -30,7 +31,7 @@ then
 
 	echo "scp /etc/hosts"
 
-	for((i=1; i<${#node[*]}; i++))
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   expect -c "
 		spawn scp /etc/hosts $username@${node[i]}:/etc/
@@ -42,9 +43,7 @@ then
 	done
 
 	echo "ntpd sync"
-	cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-	ntpdate us.pool.ntp.org
-	for((i=1; i<${#node[*]}; i++))
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   expect -c "
 		spawn ssh $username@${node[i]} \"cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;ntpdate us.pool.ntp.org;\"
@@ -56,9 +55,7 @@ then
 	done
 
 	echo "ssh nopasswd"
-	yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''
-	chmod 755 ~/.ssh
-	for((i=1; i<${#node[*]}; i++))
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   expect -c "
 		spawn ssh $username@${node[i]} \"yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''; chmod 755 ~/.ssh\"
@@ -71,7 +68,7 @@ then
 	echo "batch authorized_keys created..."
 	echo "start scp..."
 
-	for((i=1; i<${#node[*]}; i++))
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   expect -c "
 		spawn scp ${node[i]}:/$homename/.ssh/id_rsa.pub /$homename/.ssh/${node[i]}.key
@@ -84,7 +81,7 @@ then
 	done
 
 	echo "append key to authorized_keys..."
-	for((i=1; i<${#node[*]}; i++))
+	for((i=0; i<${#node[*]}; i++))
 	do
 	   cat /$homename/.ssh/${node[i]}.key >> /$homename/.ssh/authorized_keys
 	   echo "append ${node[i]}.key finished..."
