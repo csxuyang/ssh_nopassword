@@ -9,96 +9,199 @@ then
 else
         homename=home/$username
 fi
+dist=$(tr -s ' \011' '\012' < /etc/issue | head -n 1)
+if [ "$dist" = "Ubuntu" ]
+then
+	echo "set hostname"
+	rm /etc/hostname
+	echo ${node[0]} >> /etc/hostname;hostname ${node[0]}
+	ufw disable
+	ulimit -n 10000
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"rm /etc/hostname;echo ${node[i]} >> /etc/hostname;hostname ${node[i]};ufw disable;ulimit -n 10000;\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
 
-echo "set hostname"
-hostname_prefix = "packone"
-for((i=0; i<${#node[*]}; i++))
-do
-   expect -c "
-    spawn ssh $username@${node[i]} \"rm /etc/hostname;echo ${node[i]} >> /etc/hostname;service firewalld stop;ulimit -n 10000;\"
-    expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-done
+	echo "scp /etc/hosts"
 
-echo "scp /etc/hosts"
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn scp /etc/hosts $username@${node[i]}:/etc/
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
 
-for((i=0; i<${#node[*]}; i++))
-do
-   expect -c "
-    spawn scp /etc/hosts $username@${node[i]}:/etc/
-    expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-done
+	echo "ntpd sync"
+	cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+	ntpdate us.pool.ntp.org
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;ntpdate us.pool.ntp.org;\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
 
-echo "ntpd sync"
-for((i=0; i<${#node[*]}; i++))
-do
-   expect -c "
-    spawn ssh $username@${node[i]} \"chkconfig --level 5 ntpd on;service ntpd start;cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;ntpdate us.pool.ntp.org;\"
-    expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-done
+	echo "ssh nopasswd"
+	yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''
+	chmod 755 ~/.ssh
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''; chmod 755 ~/.ssh\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
+	echo "batch authorized_keys created..."
+	echo "start scp..."
 
-echo "ssh nopasswd"
-for((i=0; i<${#node[*]}; i++))
-do
-   expect -c "
-    spawn ssh $username@${node[i]} \"yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''; chmod 755 ~/.ssh\"
-    expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-done
-echo "batch authorized_keys created..."
-echo "start scp..."
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn scp ${node[i]}:/$homename/.ssh/id_rsa.pub /$homename/.ssh/${node[i]}.key
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	   echo "scp from ${node[i]} finished..."
+	done
 
-for((i=0; i<${#node[*]}; i++))
-do
-   expect -c "
-    spawn scp ${node[i]}:/$homename/.ssh/id_rsa.pub /$homename/.ssh/${node[i]}.key
-    expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-   echo "scp from ${node[i]} finished..."
-done
+	echo "append key to authorized_keys..."
+	for((i=1; i<${#node[*]}; i++))
+	do
+	   cat /$homename/.ssh/${node[i]}.key >> /$homename/.ssh/authorized_keys
+	   echo "append ${node[i]}.key finished..."
+	done
 
-echo "append key to authorized_keys..."
-for((i=0; i<${#node[*]}; i++))
-do
-   cat /$homename/.ssh/${node[i]}.key >> /$homename/.ssh/authorized_keys
-   echo "append ${node[i]}.key finished..."
-done
+	echo "append all key finished..."
+	loop=${#node[*]}
+	let subloop=loop-1
+	echo "starting scp complete authorized_keys to ${node[1]}~${node[subloop]}"
+	for((i=1; i<${#node[*]}; i++))
+	do
+	 expect -c "
+	   spawn scp /$homename/.ssh/authorized_keys ${node[i]}:/$homename/.ssh/authorized_keys 
+	   expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+			
+		echo "scp to ${node[i]} finished..."
+	done
+	echo "scp all nodes finished..."
 
-echo "append all key finished..."
-loop=${#node[*]}
-let subloop=loop-1
-echo "starting scp complete authorized_keys to ${node[1]}~${node[subloop]}"
-for((i=1; i<${#node[*]}; i++))
-do
- expect -c "
-   spawn scp /$homename/.ssh/authorized_keys ${node[i]}:/$homename/.ssh/authorized_keys 
-   expect {
-       \"*assword\" {set timeout 300; send \"$passwd\r\";}
-       \"yes/no\" {send \"yes\r\"; exp_continue;}
-      }
-   expect eof"
-        
-    echo "scp to ${node[i]} finished..."
-done
-echo "scp all nodes finished..."
+	# delete intermediate files
+	rm -rf /$homename/.ssh/*.key
+	echo "all configuration finished..."
+else
+	echo "set hostname"
+	hostname_prefix="packone"
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"rm /etc/hostname;echo ${node[i]} >> /etc/hostname;service firewalld stop;ulimit -n 10000;\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
 
-# delete intermediate files
-rm -rf /$homename/.ssh/*.key
-echo "all configuration finished..."
+	echo "scp /etc/hosts"
+
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn scp /etc/hosts $username@${node[i]}:/etc/
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
+
+	echo "ntpd sync"
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"chkconfig --level 5 ntpd on;service ntpd start;cp -rf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;ntpdate us.pool.ntp.org;\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
+
+	echo "ssh nopasswd"
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn ssh $username@${node[i]} \"yes | ssh-keygen -t rsa -f /root/.ssh/id_rsa -q -P ''; chmod 755 ~/.ssh\"
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	done
+	echo "batch authorized_keys created..."
+	echo "start scp..."
+
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   expect -c "
+		spawn scp ${node[i]}:/$homename/.ssh/id_rsa.pub /$homename/.ssh/${node[i]}.key
+		expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+	   echo "scp from ${node[i]} finished..."
+	done
+
+	echo "append key to authorized_keys..."
+	for((i=0; i<${#node[*]}; i++))
+	do
+	   cat /$homename/.ssh/${node[i]}.key >> /$homename/.ssh/authorized_keys
+	   echo "append ${node[i]}.key finished..."
+	done
+
+	echo "append all key finished..."
+	loop=${#node[*]}
+	let subloop=loop-1
+	echo "starting scp complete authorized_keys to ${node[1]}~${node[subloop]}"
+	for((i=1; i<${#node[*]}; i++))
+	do
+	 expect -c "
+	   spawn scp /$homename/.ssh/authorized_keys ${node[i]}:/$homename/.ssh/authorized_keys 
+	   expect {
+		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
+		   \"yes/no\" {send \"yes\r\"; exp_continue;}
+		  }
+	   expect eof"
+			
+		echo "scp to ${node[i]} finished..."
+	done
+	echo "scp all nodes finished..."
+
+	# delete intermediate files
+	rm -rf /$homename/.ssh/*.key
+	echo "all configuration finished..."
+fi
