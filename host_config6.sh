@@ -135,7 +135,7 @@ else
 	for((i=0; i<${#nodes[*]}; i++))
 	do
 	   expect -c "
-		spawn ssh $username@${nodes[i]} \"hostnamectl  --static set-hostname ${nodes[i]};ufw disable;ulimit -n 10000;\"
+		spawn ssh $username@${nodes[i]} \"sed -i 's/localhost.localdomain/${nodes[i]}/g' /etc/sysconfig/network;hostname ${nodes[i]};ufw disable;ulimit -n 10000;\"
 		expect {
 		   \"*assword\" {set timeout 300; send \"$passwd\r\";}
 		   \"yes/no\" {send \"yes\r\"; exp_continue;}
