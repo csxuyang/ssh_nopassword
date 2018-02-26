@@ -67,6 +67,23 @@ yum remove -y hbase_*
 yum remove -y smartsense-hst*
 yum remove -y spark*
 yum remove -y spark2*
+yum remove -y atlas-metadata*
+yum remove -y druid*
+yum remove -y datafu*
+yum remove -y flume*
+yum remove -y hive*
+yum remove -y hue*
+yum remove -y livy*
+yum remove -y kafka*
+yum remove -y mahout*
+yum remove -y phoenix*
+yum remove -y superset*
+yum remove -y tez*
+yum remove -y zeppelin*
+yum remove -y hadooplzo-native*
+yum remove -y openblas*
+yum remove -y snappy*
+
 
 #3.删除快捷方式
 cd /etc/alternatives

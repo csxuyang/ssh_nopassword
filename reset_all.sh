@@ -20,16 +20,16 @@ for((i=0; i<${#node[*]}; i++));do
 done
 
 echo ${nodes[@]}
-passwd=cnic.cn
+passwd=111111
 username=root            # username to be interconnected
 homename=$username        # home dir
 
-for((i=0; i<${#node[*]}; i++))
+for((i=0; i<${#nodes[*]}; i++))
 do
-        scp ${node[i]}:/$homename/reset_ambari.sh /$homename/
-        echo "scp from ${node[i]} finished..."
+        scp ${nodes[i]}:/$homename/reset_ambari.sh /$homename/
+        echo "scp from ${nodes[i]} finished..."
 done
-for((i=0; i<${#node[*]}; i++))
+for((i=0; i<${#nodes[*]}; i++))
 do
         ssh $username@${nodes[i]} \"/root/reset_ambari.sh\"
        
