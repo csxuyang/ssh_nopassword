@@ -32,6 +32,7 @@ done
 for((i=0; i<${#nodes[*]}; i++))
 do
         ssh $username@${nodes[i]} \"/root/reset_ambari.sh\"
+		echo "clean ${nodes[i]} finished..."
        
 done
 echo "all clean finished..."
