@@ -26,7 +26,7 @@ homename=$username        # home dir
 
 for((i=0; i<${#nodes[*]}; i++))
 do
-        scp ${nodes[i]}:/$homename/reset_ambari.sh /$homename/
+        scp /$homename/reset_ambari.sh ${nodes[i]}:/$homename/
         echo "scp from ${nodes[i]} finished..."
 done
 for((i=0; i<${#nodes[*]}; i++))
